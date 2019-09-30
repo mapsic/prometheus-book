@@ -205,3 +205,61 @@ scrape_configs:
 ```
 
 这里需要注意的是，如果relabel的操作只是为了产生一个临时变量，以作为下一个relabel操作的输入，那么我们可以使用```__tmp```作为标签名的前缀，通过该前缀定义的标签就不会写入到Target或者采集到的样本的标签中。
+
+
+## Pod JVM内存监控
+
+1. 修改dockerfile，添加如下行(已完成)
+
+```
+  COPY jmx_prometheus_javaagent-0.12.0.jar /jmx_prometheus_javaagent-0.12.0.jar
+```
+2. 发布服务（已完成）
+
+3. 更新Deployment的数据卷--> 挂载configmap 
+挂载javaagent-config到/javaagent-config.yaml 
+
+4. 修改Pod启动命令，在-jar之前添加如下行
+```
+  -javaagent:/jmx_prometheus_javaagent-0.12.0.jar=9180:/javaagent-config.yaml
+```
+5. 添加注释
+```
+  prometheus.io/scrape=true
+  prometheus.io/port=9180
+  prometheus.io/path=/metrics
+```
+
+#### 与Prometheus集成
+
+``` bash
+- job_name: 'kubernetes-pod-javaagent'
+  kubernetes_sd_configs:
+  - role: pod
+  relabel_configs:
+  - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+    action: keep
+    regex: true
+  - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+    action: replace
+    target_label: __metrics_path__
+    regex: (.+)
+  - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+    action: replace
+    regex: ([^:]+)(?::\d+)?;(\d+)
+    replacement: $1:9180
+    target_label: __address__
+  - action: labelmap
+    regex: __meta_kubernetes_pod_label_(.+)
+  - source_labels: [__meta_kubernetes_namespace]
+    action: replace
+    target_label: namespace
+  - source_labels: [__meta_kubernetes_pod_name]
+    action: replace
+    target_label: pod
+  - source_labels: [__meta_kubernetes_namespace]
+    regex: kube-system
+    action: drop
+```
+
+#### 注意： 上述不能发现kube-system命名空间下的Pod，还有不需要的label需要drop

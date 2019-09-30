@@ -360,3 +360,109 @@ receivers:
 重启Alertmanager服务后，手动拉高虚拟机CPU使用率触发告警条件，此时Dingtalk即可接收到相应的告警通知信息:
 
 ![钉钉群机器人告警信息](./static/alertmanager-dingtalk-test-result.png)
+
+#### 钉钉Deployment
+
+[dingding.yaml](../samples/manifests/dingding.yaml)
+
+#### 钉钉与Alertmanager集成
+
+```
+global:
+  resolve_timeout: 5m
+templates:
+- '/etc/alertmanager/*.tmpl'
+
+route:
+  group_by: ['alertname']
+  group_wait: 30s
+  group_interval: 1m
+  repeat_interval: 1m
+  receiver: 'dingding'
+
+  routes:
+  - receiver: dingding
+    group_wait: 30s
+    continue: true
+
+receivers:
+- name: 'dingding'
+  webhook_configs:
+  - url: 'http://dingding:8060/dingtalk/webhook1/send'
+    send_resolved: true
+```
+
+
+#### 钉钉报警模板
+
+```go
+{{ define "__subject" }} [AlertManager] {{ end }}
+{{ define "__text_list" }}{{ range . }}
+{{ range .Labels.SortedPairs }}> - {{ .Name }}: {{ .Value | markdown | html }}
+{{ end }}
+{{ range .Annotations.SortedPairs }}> - {{ .Name }}: {{ .Value | markdown | html }}
+{{ end }}
+{{"================================"}}
+{{ end }}{{ end }}
+
+
+{{ define "ding.link.title" }}{{ template "__subject" . }}{{ end }}
+{{ define "ding.link.content" }}
+{{ if gt (len .Alerts.Firing) 0 }}#### 非生产环境告警
+{{ template "__text_list" .Alerts.Firing }}{{ end }}
+{{ if gt (len .Alerts.Resolved) 0 }}#### 非生产环境告警恢复
+{{ template "__text_list" .Alerts.Resolved }}{{ end }}
+{{ end }}
+```
+
+#### 微信报警模板
+
+```go
+{{ define "wechat.default.message" }}
+{{- if gt (len .Alerts.Firing) 0 -}}
+{{- range $index, $alert := .Alerts -}}
+{{- if eq $index 0 -}}
+告警类型: {{ $alert.Labels.alertname }}
+告警级别: {{ $alert.Labels.severity }}
+
+=====================
+{{- end }}
+===告警详情===
+告警详情: {{ $alert.Annotations.message }}
+故障时间: {{ $alert.StartsAt.Format "2006-01-02 15:04:05" }}
+===参考信息===
+{{ if gt (len $alert.Labels.instance) 0 -}}故障实例ip: {{ $alert.Labels.instance }};{{- end -}}
+{{- if gt (len $alert.Labels.namespace) 0 -}}故障实例所在namespace: {{ $alert.Labels.namespace }};{{- end -}}
+{{- if gt (len $alert.Labels.pod) 0 -}}故障pod名称: {{ $alert.Labels.pod }};{{- end -}}
+
+=====================
+{{- end }}
+{{- end }}
+
+{{- if gt (len .Alerts.Resolved) 0 -}}
+{{- range $index, $alert := .Alerts -}}
+{{- if eq $index 0 -}}
+告警恢复: {{ $alert.Labels.alertname }}
+
+=====================
+{{- end }}
+===告警恢复详情===
+告警详情: {{ $alert.Annotations.message }}
+故障时间: {{ $alert.StartsAt.Format "2006-01-02 15:04:05" }}
+恢复时间: {{ $alert.EndsAt.Format "2006-01-02 15:04:05" }}
+===参考信息===
+{{ if gt (len $alert.Labels.instance) 0 -}}故障恢复实例ip: {{ $alert.Labels.instance }};{{- end -}}
+{{- if gt (len $alert.Labels.namespace) 0 -}}故障恢复实例所在namespace: {{ $alert.Labels.namespace }};{{- end -}}
+{{- if gt (len $alert.Labels.pod) 0 -}}故障恢复pod名称: {{ $alert.Labels.pod }};{{- end -}}
+
+=====================
+{{- end }}
+{{- end }}
+{{- end }}
+```
+
+#### 钉钉报警效果图
+
+![钉钉群机器人告警信息](./static/dingtalk-2019093001.jpg)
+![钉钉群机器人告警恢复信息](./static/dingtalk-2019093002.jpg)
+

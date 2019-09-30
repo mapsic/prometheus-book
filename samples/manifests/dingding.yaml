@@ -1,0 +1,58 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    kube-app: dingding
+  name: dingding
+  selfLink: /apis/extensions/v1beta1/namespaces/prometheus/deployments/dingding
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      kube-app: dingding
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        kube-app: dingding
+    spec:
+      containers:
+      - command:
+        - /bin/prometheus-webhook-dingtalk
+        - --ding.profile=webhook1=https://oapi.dingtalk.com/robot/send?access_token=xxxx
+        - --template.file=/var/dingding.tmpl
+        image: timonwong/prometheus-webhook-dingtalk:v0.3.0
+        imagePullPolicy: IfNotPresent
+        name: dingding
+        resources: {}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities: {}
+          privileged: false
+          procMount: Default
+          runAsNonRoot: false
+        stdin: true
+        tty: true
+        volumeMounts:
+        - mountPath: /var/dingding.tmpl
+          name: vol1
+          subPath: dingding.tmpl
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: vol1
+        secret:
+          defaultMode: 256
+          items:
+          - key: dingding.tmpl
+            path: dingding.tmpl
+          optional: false
+          secretName: dingding

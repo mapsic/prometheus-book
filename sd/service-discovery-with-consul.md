@@ -170,3 +170,87 @@ Consul作为一个通用的服务发现和注册中心，记录并且管理了�
 ```
 
 在consul_sd_configs定义当中通过server定义了Consul服务的访问地址，services则定义了当前需要发现哪些类型服务实例的信息，这里限定了只获取node_exporter的服务实例信息。
+
+## mapsic-20190930
+
+Linux服务器上启动单节点的consul
+
+``` bash
+mkdir -p /data/apps/consul/conf
+cd /data/apps/consul
+wget https://releases.hashicorp.com/consul/1.6.1/consul_1.6.1_linux_amd64.zip
+unzip consul_1.6.1_linux_amd64.zip
+useradd -s /sbin/nologin consul
+chown -R consul:consul /data/apps/
+cat > /etc/systemd/system/consul.service <<EOF
+[Unit]
+Description=Consul Service Discovery Agent
+Documentation=https://www.consul.io/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=consul
+Group=consul
+ExecStart=/data/apps/consul/consul agent -server -ui \
+    -advertise=192.168.1.100 \
+    -bind=192.168.1.100 \
+    -client=192.168.1.100 \
+    -bootstrap-expect=1   \
+    -data-dir=/data/consul \
+    -node=consul-01 \
+    -config-dir=/data/apps/consul/conf
+
+ExecReload=/bin/kill -HUP $MAINPID
+KillSignal=SIGINT
+TimeoutStopSec=5
+Restart=on-failure
+SyslogIdentifier=consul
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl start consul
+systemctl enable consul
+systemctl status consul
+```
+注册一个服务到consul
+
+```bash
+curl -X PUT -d '{
+
+    "id": "node001",
+    "name": "node_exporter",
+    "address": "192.168.1.101",
+    "port": 9100,
+    "tags": ["test"],
+    "checks": [
+        {
+            "http": "http://192.168.1.101:9100/metrics",
+            "interval": "15s"
+        }
+    ]
+}' http://192.168.1.100:8500/v1/agent/service/register
+```
+
+删除一个服务
+
+``` bash
+curl -X PUT http://192.168.1.100:8500/v1/agent/service/deregister/node001
+```
+在Prometheus的配置文件当可以通过以下方式与Consul进行集成：
+
+```
+- job_name: node_exporter
+        consul_sd_configs:
+          - server: 192.168.1.102:8500
+            services:
+              - node_exporter
+        relabel_configs:
+          - source_labels: [__meta_consul_tags]
+            regex: '.*,(test|prod),.*'
+            replacement: '${1}'
+            target_label: env
+```
