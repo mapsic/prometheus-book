@@ -31,7 +31,7 @@ Prometheus会将所有采集到的样本数据以时间序列（time-series）�
 
 * 指标(metric)：metric name和描述当前样本特征的labelsets;
 * 时间戳(timestamp)：一个精确到毫秒的时间戳;
-* 样本值(value)： 一个folat64的浮点型数据表示当前样本的值。
+* 样本值(value)： 一个float64的浮点型数据表示当前样本的值。
 
 ```
 <--------------- metric ---------------------><-timestamp -><-value->
@@ -69,7 +69,7 @@ api_http_requests_total{method="POST", handler="/messages"}
 {__name__="api_http_requests_total"，method="POST", handler="/messages"}
 ```
 
-在Prometheus源码中也可以指标(Metric)对应的数据结构，如下所示：
+在Prometheus源码中也可以找到指标(Metric)对应的数据结构，如下所示：
 
 ```
 type Metric LabelSet
