@@ -23,7 +23,7 @@ $ kubectl create -f prometheus-inst.yaml
 prometheus.monitoring.coreos.com/inst-1 created
 ```
 
-此时，查看default命名空间下的statefulsets资源，可以看到Prometheus Operator自动通过Statefulset创建的Prometheus实例：
+此时，查看monitoring命名空间下的statefulsets资源，可以看到Prometheus Operator自动通过Statefulset创建的Prometheus实例：
 
 ```
 $ kubectl -n monitoring get statefulsets
@@ -115,7 +115,7 @@ codelab_api_http_requests_in_progress 3
 codelab_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0001"} 0
 ```
 
-为了能够让Prometheus能够采集部署在Kubernetes下应用的监控数据，在原生的Prometheus配置方式中，我们在Prometheus配置文件中定义单独的Job，同时使用kubernetes_sd定义整个服务发现过程。而在Prometheus Operator中，则可以直接生命一个ServiceMonitor对象，如下所示：
+为了能够让Prometheus能够采集部署在Kubernetes下应用的监控数据，在原生的Prometheus配置方式中，我们在Prometheus配置文件中定义单独的Job，同时使用kubernetes_sd定义整个服务发现过程。而在Prometheus Operator中，则可以直接声明一个ServiceMonitor对象，如下所示：
 
 ```
 apiVersion: monitoring.coreos.com/v1
