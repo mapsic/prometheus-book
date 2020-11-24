@@ -1,71 +1,71 @@
-# Metric类型
+# Metric 类型
 
-在上一小节中我们带领读者了解了Prometheus的底层数据模型，在Prometheus的存储实现上所有的监控样本都是以time-series的形式保存在Prometheus内存的TSDB（时序数据库）中，而time-series所对应的监控指标(metric)也是通过labelset进行唯一命名的。
+在上一小节中我们带领读者了解了 Prometheus 的底层数据模型，在 Prometheus 的存储实现上所有的监控样本都是以 time-series 的形式保存在 Prometheus 内存的 TSDB（时序数据库）中，而 time-series 所对应的监控指标(metric)也是通过 labelset 进行唯一命名的。
 
-从存储上来讲所有的监控指标metric都是相同的，但是在不同的场景下这些metric又有一些细微的差异。 例如，在Node Exporter返回的样本中指标node_load1反应的是当前系统的负载状态，随着时间的变化这个指标返回的样本数据是在不断变化的。而指标node_cpu所获取到的样本数据却不同，它是一个持续增大的值，因为其反应的是CPU的累积使用时间，从理论上讲只要系统不关机，这个值是会无限变大的。
+从存储上来讲所有的监控指标 metric 都是相同的，但是在不同的场景下这些 metric 又有一些细微的差异。 例如，在 Node Exporter 返回的样本中指标 node_load1 反应的是当前系统的负载状态，随着时间的变化这个指标返回的样本数据是在不断变化的。而指标 node_cpu_seconds_total 所获取到的样本数据却不同，它是一个持续增大的值，因为其反应的是 CPU 的累积使用时间，从理论上讲只要系统不关机，这个值是会无限变大的。
 
-为了能够帮助用户理解和区分这些不同监控指标之间的差异，Prometheus定义了4种不同的指标类型(metric type)：Counter（计数器）、Gauge（仪表盘）、Histogram（直方图）、Summary（摘要）。
+为了能够帮助用户理解和区分这些不同监控指标之间的差异，Prometheus 定义了 4 种不同的指标类型(metric type)：Counter（计数器）、Gauge（仪表盘）、Histogram（直方图）、Summary（摘要）。
 
-在Exporter返回的样本数据中，其注释中也包含了该样本的类型。例如：
+在 Exporter 返回的样本数据中，其注释中也包含了该样本的类型。例如：
 
-```
-# HELP node_cpu Seconds the cpus spent in each mode.
-# TYPE node_cpu counter
-node_cpu{cpu="cpu0",mode="idle"} 362812.7890625
+```bash
+# HELP node_cpu_seconds_total Seconds the cpus spent in each mode.
+# TYPE node_cpu_seconds_total counter
+node_cpu_seconds_total{cpu="0",mode="idle"} 2.22355248e+06
 ```
 
 ## Counter：只增不减的计数器
 
-Counter类型的指标其工作方式和计数器一样，只增不减（除非系统发生重置）。常见的监控指标，如http_requests_total，node_cpu都是Counter类型的监控指标。 一般在定义Counter类型指标的名称时推荐使用_total作为后缀。
+Counter 类型的指标其工作方式和计数器一样，只增不减（除非系统发生重置）。常见的监控指标，如 http_requests_total，node_cpu 都是 Counter 类型的监控指标。 一般在定义 Counter 类型指标的名称时推荐使用\_total 作为后缀。
 
-Counter是一个简单但有强大的工具，例如我们可以在应用程序中记录某些事件发生的次数，通过以时序的形式存储这些数据，我们可以轻松的了解该事件产生速率的变化。
-PromQL内置的聚合操作和函数可以让用户对这些数据进行进一步的分析：
+Counter 是一个简单但有强大的工具，例如我们可以在应用程序中记录某些事件发生的次数，通过以时序的形式存储这些数据，我们可以轻松的了解该事件产生速率的变化。
+PromQL 内置的聚合操作和函数可以让用户对这些数据进行进一步的分析：
 
-例如，通过rate()函数获取HTTP请求量的增长率：
+例如，通过 rate()函数获取 HTTP 请求量的增长率：
 
-```
+```bash
 rate(http_requests_total[5m])
 ```
 
-查询当前系统中，访问量前10的HTTP地址：
+查询当前系统中，访问量前 10 的 HTTP 地址：
 
-```
+```bash
 topk(10, http_requests_total)
 ```
 
 ## Gauge：可增可减的仪表盘
 
-与Counter不同，Gauge类型的指标侧重于反应系统的当前状态。因此这类指标的样本数据可增可减。常见指标如：node_memory_MemFree（主机当前空闲的内容大小）、node_memory_MemAvailable（可用内存大小）都是Gauge类型的监控指标。
+与 Counter 不同，Gauge 类型的指标侧重于反应系统的当前状态。因此这类指标的样本数据可增可减。常见指标如：node_memory_MemFree（主机当前空闲的内容大小）、node_memory_MemAvailable（可用内存大小）都是 Gauge 类型的监控指标。
 
-通过Gauge指标，用户可以直接查看系统的当前状态：
+通过 Gauge 指标，用户可以直接查看系统的当前状态：
 
+```bash
+node_memory_MemFree_bytes
 ```
-node_memory_MemFree
-```
 
-对于Gauge类型的监控指标，通过PromQL内置函数delta()可以获取样本在一段时间返回内的变化情况。例如，计算CPU温度在两个小时内的差异：
+对于 Gauge 类型的监控指标，通过 PromQL 内置函数 delta()可以获取样本在一段时间返回内的变化情况。例如，计算 CPU 温度在两个小时内的差异：
 
-```
+```bash
 delta(cpu_temp_celsius{host="zeus"}[2h])
 ```
 
-还可以使用deriv()计算样本的线性回归模型，甚至是直接使用predict_linear()对数据的变化趋势进行预测。例如，预测系统磁盘空间在4个小时之后的剩余情况：
+还可以使用 deriv()计算样本的线性回归模型，甚至是直接使用 predict_linear()对数据的变化趋势进行预测。例如，预测系统磁盘空间在 4 个小时之后的剩余情况：
 
-```
+```bash
 predict_linear(node_filesystem_free{job="node"}[1h], 4 * 3600)
 ```
 
-## 使用Histogram和Summary分析数据分布情况
+## 使用 Histogram 和 Summary 分析数据分布情况
 
-除了Counter和Gauge类型的监控指标以外，Prometheus还定义了Histogram和Summary的指标类型。Histogram和Summary主用用于统计和分析样本的分布情况。
+除了 Counter 和 Gauge 类型的监控指标以外，Prometheus 还定义了 Histogram 和 Summary 的指标类型。Histogram 和 Summary 主用用于统计和分析样本的分布情况。
 
-在大多数情况下人们都倾向于使用某些量化指标的平均值，例如CPU的平均使用率、页面的平均响应时间。这种方式的问题很明显，以系统API调用的平均响应时间为例：如果大多数API请求都维持在100ms的响应时间范围内，而个别请求的响应时间需要5s，那么就会导致某些WEB页面的响应时间落到中位数的情况，而这种现象被称为长尾问题。
+在大多数情况下人们都倾向于使用某些量化指标的平均值，例如 CPU 的平均使用率、页面的平均响应时间。这种方式的问题很明显，以系统 API 调用的平均响应时间为例：如果大多数 API 请求都维持在 100ms 的响应时间范围内，而个别请求的响应时间需要 5s，那么就会导致某些 WEB 页面的响应时间落到中位数的情况，而这种现象被称为长尾问题。
 
-为了区分是平均的慢还是长尾的慢，最简单的方式就是按照请求延迟的范围进行分组。例如，统计延迟在0~10ms之间的请求数有多少而10~20ms之间的请求数又有多少。通过这种方式可以快速分析系统慢的原因。Histogram和Summary都是为了能够解决这样问题的存在，通过Histogram和Summary类型的监控指标，我们可以快速了解监控样本的分布情况。 
+为了区分是平均的慢还是长尾的慢，最简单的方式就是按照请求延迟的范围进行分组。例如，统计延迟在 0~10ms 之间的请求数有多少而 10~20ms 之间的请求数又有多少。通过这种方式可以快速分析系统慢的原因。Histogram 和 Summary 都是为了能够解决这样问题的存在，通过 Histogram 和 Summary 类型的监控指标，我们可以快速了解监控样本的分布情况。
 
-例如，指标prometheus_tsdb_wal_fsync_duration_seconds的指标类型为Summary。 它记录了Prometheus Server中wal_fsync处理的处理时间，通过访问Prometheus Server的/metrics地址，可以获取到以下监控样本数据：
+例如，指标 prometheus_tsdb_wal_fsync_duration_seconds 的指标类型为 Summary。 它记录了 Prometheus Server 中 wal_fsync 处理的处理时间，通过访问 Prometheus Server 的/metrics 地址，可以获取到以下监控样本数据：
 
-```
+```bash
 # HELP prometheus_tsdb_wal_fsync_duration_seconds Duration of WAL fsync.
 # TYPE prometheus_tsdb_wal_fsync_duration_seconds summary
 prometheus_tsdb_wal_fsync_duration_seconds{quantile="0.5"} 0.012352463
@@ -75,11 +75,11 @@ prometheus_tsdb_wal_fsync_duration_seconds_sum 2.888716127000002
 prometheus_tsdb_wal_fsync_duration_seconds_count 216
 ```
 
-从上面的样本中可以得知当前Prometheus Server进行wal_fsync操作的总次数为216次，耗时2.888716127000002s。其中中位数（quantile=0.5）的耗时为0.012352463，9分位数（quantile=0.9）的耗时为0.014458005s。
+从上面的样本中可以得知当前 Prometheus Server 进行 wal_fsync 操作的总次数为 216 次，耗时 2.888716127000002s。其中中位数（quantile=0.5）的耗时为 0.012352463，9 分位数（quantile=0.9）的耗时为 0.014458005s。
 
-在Prometheus Server自身返回的样本数据中，我们还能找到类型为Histogram的监控指标prometheus_tsdb_compaction_chunk_range_bucket。
+在 Prometheus Server 自身返回的样本数据中，我们还能找到类型为 Histogram 的监控指标 prometheus_tsdb_compaction_chunk_range_bucket。
 
-```
+```bash
 # HELP prometheus_tsdb_compaction_chunk_range Final time range of chunks on their first compaction
 # TYPE prometheus_tsdb_compaction_chunk_range histogram
 prometheus_tsdb_compaction_chunk_range_bucket{le="100"} 0
@@ -97,6 +97,20 @@ prometheus_tsdb_compaction_chunk_range_sum 1.1540798e+09
 prometheus_tsdb_compaction_chunk_range_count 780
 ```
 
-与Summary类型的指标相似之处在于Histogram类型的样本同样会反应当前指标的记录的总数(以_count作为后缀)以及其值的总量（以_sum作为后缀）。不同在于Histogram指标直接反应了在不同区间内样本的个数，区间通过标签len进行定义。
+与 Summary 类型的指标相似之处在于 Histogram 类型的样本同样会反应当前指标的记录的总数(以\_count 作为后缀)以及其值的总量（以\_sum 作为后缀）。不同在于 Histogram 指标直接反应了在不同区间内样本的个数，区间通过标签 len 进行定义。
 
-同时对于Histogram的指标，我们还可以通过histogram_quantile()函数计算出其值的分位数。不同在于Histogram通过histogram_quantile函数是在服务器端计算的分位数。 而Sumamry的分位数则是直接在客户端计算完成。因此对于分位数的计算而言，Summary在通过PromQL进行查询时有更好的性能表现，而Histogram则会消耗更多的资源。反之对于客户端而言Histogram消耗的资源更少。在选择这两种方式时用户应该按照自己的实际场景进行选择。
+同时对于 Histogram 的指标，我们还可以通过 histogram_quantile()函数计算出其值的分位数。不同在于 Histogram 通过 histogram_quantile 函数是在服务器端计算的分位数。 而 Sumamry 的分位数则是直接在客户端计算完成。因此对于分位数的计算而言，Summary 在通过 PromQL 进行查询时有更好的性能表现，而 Histogram 则会消耗更多的资源。反之对于客户端而言 Histogram 消耗的资源更少。在选择这两种方式时用户应该按照自己的实际场景进行选择。
+
+## Prometheus 的指标分类
+
+Prometheus 指标分为 Counter（计数器）、Gauge（仪表盘）、Histogram（直方图）和 Summary（摘要）这 4 类。
+
+Summary， Histogram 用于凸显数据的分布情况
+
+> Counter (计数器) 一直增加
+
+> Gauge (仪表盘) 表长征指标的实时变化情况，可增可减
+
+> Summary (摘要) 是采样点分位图统计，用于得到数据的分布情况
+
+> Histogram (直方图) 反映了某个区间内的样本个数
